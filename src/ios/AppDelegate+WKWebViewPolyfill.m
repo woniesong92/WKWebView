@@ -3,6 +3,8 @@
 #import "MyMainViewController.h"
 #import <GCDWebServer/GCDWebServer.h>
 
+MyMainViewController *myMainViewController;
+
 // need to swap out a method, so swizzling it here
 static void swizzleMethod(Class class, SEL destinationSelector, SEL sourceSelector);
 
@@ -30,7 +32,7 @@ NSMutableDictionary* _webServerOptions;
 
     self.window = [[UIWindow alloc] initWithFrame:screenBounds];
     self.window.autoresizesSubviews = YES;
-    MyMainViewController *myMainViewController = [[MyMainViewController alloc] init];
+    myMainViewController = [[MyMainViewController alloc] init];
     self.viewController = myMainViewController;
     self.window.rootViewController = myMainViewController;
     [self.window makeKeyAndVisible];
@@ -47,21 +49,11 @@ NSMutableDictionary* _webServerOptions;
                                 cacheAge:60
                       allowRangeRequests:YES];
 
-    // Add handler for anything under Data, like Documents and Library
-    [_webServer addHandlerForMethod:@"GET"
-                          pathRegex:@"/.*/Data/"
-                       requestClass:[GCDWebServerRequest class]
-                       processBlock:^GCDWebServerResponse *(GCDWebServerRequest* request) {
-                         NSData *d = [NSData dataWithContentsOfFile:request.URL.path];
-                         return [GCDWebServerDataResponse responseWithData:d contentType:@"application/octet-stream"];
-                       }
-     ];
-  
     // Initialize Server startup
     if (startWebServer) {
         [self startServer];
     }
-    
+
     // Update Swizzled ViewController with port currently used by local Server
     [myMainViewController setServerPort:_webServer.port];
 }

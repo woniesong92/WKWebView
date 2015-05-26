@@ -59,6 +59,9 @@
     <header-file src="src/ios/CDVWebViewUIDelegate.h"/>
     <source-file src="src/ios/CDVWebViewUIDelegate.m"/>
 
+    <source-file src="src/ios/WkWebViewCordovaUpdate.h"/>
+    <source-file src="src/ios/WkWebViewCordovaUpdate.m"/>
+
   </platform>
 
 </plugin>
