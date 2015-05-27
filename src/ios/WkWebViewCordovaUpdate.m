@@ -742,6 +742,9 @@ NSDictionary *MimeTypeMappings;
     METEORDocumentRoot = [command.arguments objectAtIndex:0];
     METEORCordovajsRoot = myMainViewController.wwwFolderName;
     
+    NSString * documentsFolder = [self getAppDocumentsFolder];
+    NSLog(@"WkWebViewCordovaUpdate.startServer: documentsFolder - %@ ", documentsFolder);
+    
     NSLog(@"WkWebViewCordovaUpdate.startServer: METEORCordovajsRoot - %@ ", METEORCordovajsRoot);
     
     if(![[METEORDocumentRoot substringFromIndex:[METEORDocumentRoot length]-1]  isEqual: @"/"]){
@@ -749,36 +752,39 @@ NSDictionary *MimeTypeMappings;
         NSLog(@"WkWebViewCordovaUpdate.startServer: METEORDocumentRoot - %@", METEORDocumentRoot);
     }
     
-    //    NSString* indexHtmlPath = [NSString stringWithFormat:@"%@index.html",METEORDocumentRoot];
-    
-    //  [NSURLProtocol registerClass:[METEORCordovaURLProtocol class]];
-    
-    
     [_webServer addDefaultHandlerForMethod:@"GET"
                               requestClass:[GCDWebServerRequest class]
                               processBlock:^GCDWebServerResponse *(GCDWebServerRequest* request) {
                                   
-                                  NSString *path = [request.URL.path stringByAddingPercentEncodingWithAllowedCharacters:
-                                                    [NSCharacterSet URLHostAllowedCharacterSet]];
+                                  NSString *path = request.URL.path;
+//                                  NSString *path = [request.URL.path stringByAddingPercentEncodingWithAllowedCharacters:
+//                                                    [NSCharacterSet URLHostAllowedCharacterSet]];
                                   
-                                  NSString *filePath = [self filePathForURI:path allowDirectory:NO];
-                                  
-                                  BOOL isDir = NO;
-                                  
-                                  // XXX HACKHACK if the file not found, return the root page
-                                  if (!filePath || ![[NSFileManager defaultManager] fileExistsAtPath:filePath isDirectory:&isDir] || isDir)
-                                  {
-                                      filePath = [self filePathForURI:@"/" allowDirectory:NO];
-                                  }
+                                  NSString *filePath;
+                                  //@"/Containers/Data/Application/[^/]*/Documents/
+                                  if([self stringMatches:path withPattern:@"/Containers/Data/Application/[^/]+/Documents/"]){
+                                      filePath = [self replaceText:path withPattern:@"^/.*/Containers/Data/Application/[^/]+/Documents" withText:documentsFolder];
+                                  } else {
+                                      filePath = [self filePathForURI:path allowDirectory:NO];
+                                      
+                                      BOOL isDir = NO;
+                                      
+                                      // XXX HACKHACK if the file not found, return the root page
+                                      if (!filePath || ![[NSFileManager defaultManager] fileExistsAtPath:filePath isDirectory:&isDir] || isDir)
+                                      {
+                                          filePath = [self filePathForURI:@"/" allowDirectory:NO];
+                                      }
+                                 }
                                   
                                   NSLog(@"METEOR CORDOVA DEBUG loading filepath: %@ for path: %@", filePath, path);
                                   
-                                  
                                   // set the content-type header if the extension is known
-                                  NSString * contentType = @"text/html";
+                                  NSString * contentType = @"application/octet-stream";
                                   if (MimeTypeMappings[[path pathExtension]]) {
                                       contentType = MimeTypeMappings[[path pathExtension]];
                                   }
+                                  NSLog(@"METEOR CORDOVA DEBUG contentType: %@", contentType);
+                                  
                                   
                                   NSData *d = [NSData dataWithContentsOfFile:filePath];
                                   return [GCDWebServerDataResponse responseWithData:d contentType:contentType];
@@ -793,26 +799,6 @@ NSDictionary *MimeTypeMappings;
      allowRangeRequests:YES];
      */
     
-    [_webServer addHandlerForMethod:@"GET"
-                          pathRegex:@"/.*/Containers/Data/"
-                       requestClass:[GCDWebServerRequest class]
-                       processBlock:^GCDWebServerResponse *(GCDWebServerRequest* request) {
-                           
-                           NSString *path = [request.URL.path stringByAddingPercentEncodingWithAllowedCharacters:
-                                             [NSCharacterSet URLHostAllowedCharacterSet]];
-                           
-                           NSData *d = [NSData dataWithContentsOfFile:request.URL.path];
-                           
-                           // set the content-type header if the extension is known
-                           NSString * contentType = @"application/octet-stream";
-                           if (MimeTypeMappings[[path pathExtension]]) {
-                               contentType = MimeTypeMappings[[path pathExtension]];
-                           }
-                           
-                           return [GCDWebServerDataResponse responseWithData:d contentType:contentType];
-                       }
-     ];
-    
     
     // Add GET handler for cordova.js to be served from cordova www folder
     /*[_webServer addGETHandlerForPath:@"/cordova.js"
@@ -820,8 +806,12 @@ NSDictionary *MimeTypeMappings;
      isAttachment:NO
      cacheAge:60
      allowRangeRequests:YES];*/
-    
+//    NSString * serverUrl = [_webServer.serverURL absoluteString];
+//    if([serverUrl hasSuffix:@"/"]){
+//        serverUrl = [serverUrl substringToIndex:[serverUrl length]-1];
+//    }
     NSString* serverUrl =  [NSString stringWithFormat:@"http://localhost:%lu", (unsigned long)_webServer.port];
+    
     NSLog(@"WkWebViewCordovaUpdate.startServer: serverUrl - %@", serverUrl);
     
     [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:serverUrl] callbackId:command.callbackId];
@@ -838,6 +828,50 @@ NSDictionary *MimeTypeMappings;
 {
     NSLog(@"WkWebViewCordovaUpdate.getCordovajsRoot: %@", command.arguments);
     //  [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:METEORCordovajsRoot] callbackId:command.callbackId];
+}
+
+- (NSString *)getAppDocumentsFolder {
+    return [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) lastObject];
+}
+
+- (NSRegularExpression *)regularExpressionWithString:(NSString *)pattern
+{
+    NSError *error = NULL;
+    NSRegularExpressionOptions regexOptions = NSRegularExpressionCaseInsensitive;
+    
+    NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:pattern options:regexOptions error:&error];
+    if (error)
+    {
+        NSLog(@"Couldn't create regex with given string and options");
+    }
+    
+    return regex;
+}
+
+- (NSString*)replaceText:(NSString *)string withPattern:(NSString*)searchString withText:(NSString *)replacementString{
+    NSRange range = NSMakeRange(0, string.length);
+    NSRegularExpression *regex = [self regularExpressionWithString:searchString];
+    NSString * stringResult = [regex stringByReplacingMatchesInString:string options:0 range:range withTemplate:replacementString];
+    return stringResult;
+}
+
+- (BOOL)stringMatches:(NSString *)string withPattern:(NSString *)pattern
+{
+    NSError *error = nil;
+    NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:pattern options:NSRegularExpressionCaseInsensitive error:&error];
+    
+    NSAssert(regex, @"Unable to create regular expression");
+    
+    NSRange textRange = NSMakeRange(0, string.length);
+    NSRange matchRange = [regex rangeOfFirstMatchInString:string options:NSMatchingReportProgress range:textRange];
+    
+    BOOL matched = NO;
+    
+    // Did we find a matching range
+    if (matchRange.location != NSNotFound)
+        matched = YES;
+    
+    return matched;
 }
 
 /**
