@@ -2,6 +2,8 @@
 #import "AppDelegate.h"
 #import "MyMainViewController.h"
 #import <GCDWebServer/GCDWebServer.h>
+#import <GCDWebServer/GCDWebServerPrivate.h>
+#import <GCDWebServer/GCDWebServerDataResponse.h>
 
 MyMainViewController *myMainViewController;
 
@@ -10,8 +12,11 @@ static void swizzleMethod(Class class, SEL destinationSelector, SEL sourceSelect
 
 @implementation AppDelegate (WKWebViewPolyfill)
 
+NSString *const FileSchemaConstant = @"file://";
+NSString *const ServerCreatedNotificationName = @"WKWebView.WebServer.Created";
 GCDWebServer* _webServer;
 NSMutableDictionary* _webServerOptions;
+NSString* appDataFolder;
 
 + (void)load {
     // Swap in our own viewcontroller which loads the wkwebview, but only in case we're running iOS 8+
@@ -36,18 +41,24 @@ NSMutableDictionary* _webServerOptions;
     self.viewController = myMainViewController;
     self.window.rootViewController = myMainViewController;
     [self.window makeKeyAndVisible];
+    appDataFolder = [[NSSearchPathForDirectoriesInDomains(NSLibraryDirectory, NSUserDomainMask, YES) objectAtIndex:0] stringByDeletingLastPathComponent];
 
     // Initialize Server environment variables
     NSString *directoryPath = myMainViewController.wwwFolderName;
     _webServer = [[GCDWebServer alloc] init];
     _webServerOptions = [NSMutableDictionary dictionary];
-
+    
     // Add GET handler for local "www/" directory
     [_webServer addGETHandlerForBasePath:@"/"
                            directoryPath:directoryPath
                            indexFilename:nil
                                 cacheAge:60
                       allowRangeRequests:YES];
+    
+    [[NSNotificationCenter defaultCenter] postNotificationName:ServerCreatedNotificationName object: @[myMainViewController, _webServer]];
+    
+    [self addHandlerForPath:@"/Library/"];
+    [self addHandlerForPath:@"/Documents/"];
 
     // Initialize Server startup
     if (startWebServer) {
@@ -56,6 +67,26 @@ NSMutableDictionary* _webServerOptions;
 
     // Update Swizzled ViewController with port currently used by local Server
     [myMainViewController setServerPort:_webServer.port];
+}
+
+- (void)addHandlerForPath:(NSString *) path {
+  [_webServer addHandlerForMethod:@"GET"
+                        pathRegex:[@".*" stringByAppendingString:path]
+                     requestClass:[GCDWebServerRequest class]
+                     processBlock:^GCDWebServerResponse *(GCDWebServerRequest* request) {
+                       NSString *fileLocation = request.URL.path;
+                       if ([fileLocation hasPrefix:path]) {
+                         fileLocation = [appDataFolder stringByAppendingString:request.URL.path];
+                       }
+                       
+                       fileLocation = [fileLocation stringByReplacingOccurrencesOfString:FileSchemaConstant withString:@""];
+                       if (![[NSFileManager defaultManager] fileExistsAtPath:fileLocation]) {
+                           return nil;
+                       }
+                         
+                       return [GCDWebServerFileResponse responseWithFile:fileLocation];
+                     }
+   ];
 }
 
 - (BOOL)identity_application: (UIApplication *)application

@@ -110,9 +110,13 @@
   self.wkWebView = [self newCordovaWKWebViewWithFrame:webViewBounds wkWebViewConfig:config];
   self.wkWebView.autoresizingMask = (UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight);
 
-  // avoid the white flash while opening the app
   [self.wkWebView setOpaque:NO];
-  self.wkWebView.backgroundColor = [UIColor clearColor];
+  NSString* setting = @"BackgroundColor";
+  if ([self settingForKey:setting]) {
+      self.wkWebView.backgroundColor = [self colorFromHexString:[self settingForKey:setting]];
+  } else {
+      self.wkWebView.backgroundColor = [UIColor whiteColor];
+  }
 
   _webViewOperationsDelegate = [[CDVWebViewOperationsDelegate alloc] initWithWebView:self.webView];
 
@@ -379,6 +383,10 @@
     [self.wkWebView.scrollView setDecelerationRate:UIScrollViewDecelerationRateNormal];
   }
 
+  // don't show scrollbars
+  self.wkWebView.scrollView.showsHorizontalScrollIndicator = NO;
+  self.wkWebView.scrollView.showsVerticalScrollIndicator = NO;
+
   /*
    * iOS 6.0 UIWebView properties
    */
@@ -509,9 +517,9 @@
   }
 
   // Start timer which periodically checks whether the app is alive
-//  if ([self settingForKey:@"RecoverFromCrash"] && [[self settingForKey:@"RecoverFromCrash"] boolValue]) {
+  if (![self settingForKey:@"DisableCrashRecovery"] || ![[self settingForKey:@"DisableCrashRecovery"] boolValue]) {
     _crashRecoveryTimer = [NSTimer scheduledTimerWithTimeInterval:1 target:self selector:@selector(recoverFromCrash) userInfo:nil repeats:YES];
-//  }
+  }
 }
 
 - (WKWebView*)newCordovaWKWebViewWithFrame:(CGRect)bounds wkWebViewConfig:(WKWebViewConfiguration*) config
@@ -573,5 +581,14 @@
   [self.commandQueue  execute:command];
 }
 #endif /* ifdef __IPHONE_8_0 */
+
+#pragma mark Color Utility
+// Assumes input like "0xFF00FF00" (0xAARRGGBB).
+- (UIColor *)colorFromHexString:(NSString *)hexString {
+    unsigned rgbValue = 0;
+    NSScanner *scanner = [NSScanner scannerWithString:hexString];
+    [scanner scanHexInt:&rgbValue];
+    return [UIColor colorWithRed:((rgbValue & 0xFF0000) >> 16)/255.0 green:((rgbValue & 0xFF00) >> 8)/255.0 blue:(rgbValue & 0xFF)/255.0 alpha:((rgbValue & 0xFF000000) >> 24)/255.0];
+}
 
 @end
