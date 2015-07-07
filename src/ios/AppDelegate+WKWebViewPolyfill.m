@@ -57,8 +57,9 @@ NSString* appDataFolder;
     
     [[NSNotificationCenter defaultCenter] postNotificationName:ServerCreatedNotificationName object: @[myMainViewController, _webServer]];
     
-    [self addHandlerForPath:@"/Library/"];
-    [self addHandlerForPath:@"/Documents/"];
+// The meteor specific WkWebViewCordovaUpdate manages all requests, so this is commented out.
+//    [self addHandlerForPath:@"/Library/"];
+//    [self addHandlerForPath:@"/Documents/"];
 
     // Initialize Server startup
     if (startWebServer) {
