@@ -1,4 +1,5 @@
 #import <GCDWebServer/GCDWebServer.h>
+#import <GCDWebServer/GCDWebServerDataResponse.h>
 
 #import "MyMainViewController.h"
 #import "WkWebViewCordovaUpdate.h"
