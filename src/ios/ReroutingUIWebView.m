@@ -20,4 +20,18 @@
   [self.wkWebView addSubview:view];
 }
 
+// TEMPORARY FIX THAT REPLACES disableScroll() method.
+// This is necessary to prevent the window to push up when
+// the input field is at the bottom of the screen.
+// For more information: https://github.com/Telerik-Verified-Plugins/WKWebView/issues/27
+
+- (void)layoutSubviews {
+    self.wkWebView.frame = self.frame;
+    self.wkWebView.scrollView.delegate = self;
+}
+
+- (void)scrollViewDidScroll:(UIScrollView *)scrollView {
+    [self.scrollView.delegate scrollViewDidScroll:scrollView];
+}
+
 @end
